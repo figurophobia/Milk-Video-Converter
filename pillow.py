@@ -142,7 +142,7 @@ def apply_filter_to_frames(input_folder, output_folder, compression=False, effec
     print("Finished applying filter to all frames.")
 
 def frames_to_video(input_folder, output_path, fps):
-    """Converts a sequence of frames into a video file."""
+    """Converts a sequence of frames into a video file using ffmpeg."""
     print(f"Converting frames in '{input_folder}' to video '{output_path}' at {fps} fps...")
     frame_files = [f for f in os.listdir(input_folder) if f.endswith('.jpg')]
     
@@ -150,19 +150,33 @@ def frames_to_video(input_folder, output_path, fps):
         print("No frames found in the input folder.")
         return
     
+    # Ensure the frames are sorted correctly
     frame_files.sort(key=lambda x: int(x[5:-4]))
+    
+    # Create a temporary text file listing all frames in the correct order
+    with open('frames.txt', 'w') as f:
+        for frame_file in frame_files:
+            frame_path = os.path.join(input_folder, frame_file)
+            f.write(f"file '{frame_path}'\n")
 
-    frame = cv2.imread(os.path.join(input_folder, frame_files[0]))
-    height, width, _ = frame.shape
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    # Construct the ffmpeg command
+    command = [
+        'ffmpeg',
+        '-f', 'concat',
+        '-safe', '0',
+        '-r', str(fps),
+        '-i', 'frames.txt',
+        '-c:v', 'libx264',
+        '-pix_fmt', 'yuv420p',
+        output_path
+    ]
 
-    for frame_file in frame_files:
-        frame_path = os.path.join(input_folder, frame_file)
-        frame = cv2.imread(frame_path)
-        out.write(frame)
+    # Execute the ffmpeg command
+    subprocess.run(command)
+    
+    # Remove the temporary text file
+    os.remove('frames.txt')
 
-    out.release()
     print(f"Video saved to '{output_path}'.")
 
 def main():
