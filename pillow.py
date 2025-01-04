@@ -47,7 +47,7 @@ def probably(prob):
     """Returns True with a probability equal to `prob`."""
     return random.random() < prob
 
-def apply_filter(image, compression, effect, milk_type, quality):
+def apply_filter(image, compression, effect, milk_type, calidad, frame_path):
     """Applies a custom filter to an image."""
     if effect:
         punt = 70
@@ -55,10 +55,17 @@ def apply_filter(image, compression, effect, milk_type, quality):
         punt = 100
 
     imag = image.convert('RGB')
+    #Sacar el nombre del archivo dada su ruta absoluta, quita la extension
+    nombre = os.path.splitext(os.path.basename(frame_path))[0]
 
     if compression:
-        imag.save("temp.jpg", quality=100-quality)
-        imag = Image.open("temp.jpg")
+        # Guarda la imagen con el mismo nombre en la carpeta 'filtered_frames'
+        output_folder = 'filtered_frames'
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+        output_path = os.path.join(output_folder, f"{nombre}.jpg")
+        imag.save(output_path, quality=100-calidad)
+        imag = Image.open(output_path)
 
     width, height = imag.size
 
@@ -107,7 +114,7 @@ def apply_filter_to_frame_range(start, end, input_folder, output_folder, compres
         if os.path.exists(frame_path):
             print(f"{process_name} processing {frame_path}...")
             image = Image.open(frame_path)
-            filtered_image = apply_filter(image, compression, effect, milk_type, quality)
+            filtered_image = apply_filter(image, compression, effect, milk_type, quality, frame_path)
             filtered_frame_path = os.path.join(output_folder, f"frame{frame_num}.jpg")
             filtered_image.save(filtered_frame_path)
             print(f"{process_name} saved filtered frame to {filtered_frame_path}.")
