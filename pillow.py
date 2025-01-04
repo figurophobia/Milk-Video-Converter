@@ -6,17 +6,10 @@ from PIL import Image
 from multiprocessing import Process, cpu_count, current_process
 import argparse
 
-def extract_audio(video_path, audio_path):
-    """Extracts audio from a video file and saves it as an MP3 file."""
-    print(f"Extracting audio from {video_path}...")
-    command = f"ffmpeg -i {video_path} -q:a 0 -map a {audio_path}"
-    subprocess.call(command, shell=True)
-    print(f"Audio extracted and saved to {audio_path}.")
-
 def convert_video(input_path, output_path):
     """Converts a video file to a compatible format."""
     print(f"Converting {input_path} to {output_path}...")
-    command = f"ffmpeg -i {input_path} -c:v libx264 -crf 23 -preset medium -c:a aac {output_path}"
+    command = f"ffmpeg -i {input_path} -c:v libx264 -crf 23 -preset medium {output_path}"
     subprocess.call(command, shell=True)
     print(f"Video converted and saved to {output_path}.")
 
@@ -182,9 +175,6 @@ def main():
     converted_video_path = 'converted_video.mp4'
     convert_video(video_path, converted_video_path)
 
-    audio_path = 'audio.mp3'
-    extract_audio(converted_video_path, audio_path)
-
     fps, total_frames = extract_frames(converted_video_path, 'og')
 
     milk_type = int(input("Select milk type (1 or 2): "))
@@ -202,18 +192,12 @@ def main():
 
     frames_to_video('filtered_frames', 'filtered_video.mp4', fps)
 
-    final_video_path = 'final_video_with_audio.mp4'
-    command = f"ffmpeg -i filtered_video.mp4 -i {audio_path} -c:v libx264 -crf 23 -preset medium -c:a aac -strict -2 {final_video_path}"
-    subprocess.call(command, shell=True)
-
     for file in os.listdir('filtered_frames'):
         os.remove(f'filtered_frames/{file}')
 
     os.rmdir('filtered_frames')
     os.rmdir('og')
-    os.remove(audio_path)
     os.remove(converted_video_path)
-    os.remove('filtered_video.mp4')
 
 if __name__ == "__main__":
     main()
