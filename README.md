@@ -6,9 +6,9 @@ The original filter was created by [LucaSinUnaS](https://github.com/LucaSinUnaS)
 
 ## What the script does:
 
-    Extracts frames from the video.
-    Applies custom filters to the frames, acording to the user's input.
-    Reassembles the frames into a new video with the original audio.
+- Extracts frames from the video.
+- Applies custom filters to the frames, acording to the user's input.
+- Reassembles the frames into a new video with the original audio.
 
 
 ## Requirements
@@ -21,17 +21,14 @@ pip install -r requirements.txt
 
 ## Usage (CLI VERSION)
 
-To use the script, follow these steps:
-
+To use the script, follow these steps
 Download the repository to your PC, you can do this by cloning the repository or downloading the ZIP file.
-
 If you want to clone the repository, use the following command:
 
 ```bash
 git clone https://github.com/figurophobia/Milk-Video-Converter
 ```
 This will create a folder named "Milk-Video-Converter" in your current directory.
-
 Place your video file in the same directory as the script (preferably in .mp4 format).
 Run the script with the path to your video file as an argument:
 
@@ -41,7 +38,6 @@ python videoCLI.py /path/to/your/video/file
 Follow the on-screen prompts to customize the frame extraction FPS, select the milk type, apply pointillism effect, and apply compression.
 
 If you dont want to customize the frame extraction FPS, the script will detect the FPS of the video and use it as the default value, this is not recommended for videos with high FPS, such as 60 FPS, it will create a lot of frames and the script will take a long time to process them.
-
 Be patient, the script will take some time to process the video, depending on the video's length and the selected filters, it may take a few minutes to complete.
 The progress of the script will be displayed in the console, showing the % of the video processed.
 
