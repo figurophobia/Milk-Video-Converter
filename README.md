@@ -1,6 +1,6 @@
 # MILK-VIDEO-CONVERTER
 
-This repository contains a Python script that processes a local video file, applies custom filters to make it look like the game "MILK INSIDE/OUTSIDE A BAG OF MILK", and saves the processed video.
+This repository contains a Python script that processes a local video file, applies custom filters to make it look like the game MILK INSIDE/OUTSIDE A BAG OF MILK created by Nikita Kryukov, and saves the processed video.
 
 The original filter was created by [LucaSinUnaS](https://github.com/LucaSinUnaS) to apply it to an image. I just adapted it to process a full video. Go check his work [here](https://github.com/LucaSinUnaS/Milk-Filter).
 
@@ -38,6 +38,7 @@ python videoCLI.py /path/to/your/video/file
 Follow the on-screen prompts to customize the frame extraction FPS, select the milk type, apply pointillism effect, and apply compression.
 
 If you dont want to customize the frame extraction FPS, the script will detect the FPS of the video and use it as the default value, this is not recommended for videos with high FPS, such as 60 FPS, it will create a lot of frames and the script will take a long time to process them.
+
 Be patient, the script will take some time to process the video, depending on the video's length and the selected filters, it may take a few minutes to complete.
 The progress of the script will be displayed in the console, showing the % of the video processed.
 
