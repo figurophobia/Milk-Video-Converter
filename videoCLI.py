@@ -5,36 +5,32 @@ import cv2
 from PIL import Image
 from multiprocessing import Process, cpu_count, current_process
 import argparse
+import shutil
+import time
 
-def convert_video(input_path, output_path):
-    """Converts a video file to a compatible format."""
-    print(f"Converting {input_path} to {output_path}...")
-    command = f"ffmpeg -i {input_path} -c:v libx264 -crf 23 -preset medium {output_path}"
-    subprocess.call(command, shell=True)
-    print(f"Video converted and saved to {output_path}.")
-
-def extract_frames(video_path, output_folder):
-    """Extracts frames from a video file and saves them in a folder."""
-    print(f"Extracting frames from {video_path}...")
+def get_video_fps(video_path):
+    """Gets the FPS of a video file."""
     vidcap = cv2.VideoCapture(video_path)
     fps = vidcap.get(cv2.CAP_PROP_FPS)
-    success, image = vidcap.read()
-    count = 0
+    vidcap.release()
+    return fps
 
+def extract_frames_with_ffmpeg(video_path, output_folder, fps):
+    """Extracts frames from a video file using ffmpeg."""
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-        print(f"Folder '{output_folder}' created.")
+    else:
+        # Ensure the folder is empty
+        for filename in os.listdir(output_folder):
+            file_path = os.path.join(output_folder, filename)
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
 
-    while success:
-        frame_path = f"{output_folder}/frame{count}.jpg"
-        cv2.imwrite(frame_path, image)
-        print(f"Frame {count} saved to {frame_path}.")
-        success, image = vidcap.read()
-        count += 1
-
-    vidcap.release()
-    print("Frame extraction completed.")
-    return fps, count
+    print(f"Extracting frames at {fps} FPS...")
+    command = f"ffmpeg -y -i {video_path} -vf fps={fps} {output_folder}/frame%06d.jpg"
+    subprocess.call(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def probably(prob):
     """Returns True with a probability equal to `prob`."""
@@ -101,25 +97,26 @@ def apply_filter(image, compression, effect, milk_type, calidad, frame_path):
 
 def apply_filter_to_frame_range(start, end, input_folder, output_folder, compression, effect, milk_type, quality):
     """Applies the filter to a range of frames and saves them to the output folder."""
-    process_name = current_process().name
     for frame_num in range(start, end):
-        frame_path = os.path.join(input_folder, f"frame{frame_num}.jpg")
+        frame_path = os.path.join(input_folder, f"frame{frame_num:06d}.jpg")
         if os.path.exists(frame_path):
-            print(f"{process_name} processing {frame_path}...")
             image = Image.open(frame_path)
             filtered_image = apply_filter(image, compression, effect, milk_type, quality, frame_path)
-            filtered_frame_path = os.path.join(output_folder, f"frame{frame_num}.jpg")
+            filtered_frame_path = os.path.join(output_folder, f"frame{frame_num:06d}.jpg")
             filtered_image.save(filtered_frame_path)
-            print(f"{process_name} saved filtered frame to {filtered_frame_path}.")
-        else:
-            print(f"{process_name}: {frame_path} not found. Skipping.")
 
 def apply_filter_to_frames(input_folder, output_folder, compression=False, effect=False, milk_type=1, quality=90):
     """Applies the custom filter to each extracted frame and saves them to the output folder."""
-    print(f"Applying filter to frames in '{input_folder}' and saving to '{output_folder}'...")
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-        print(f"Folder '{output_folder}' created.")
+    else:
+        # Ensure the folder is empty
+        for filename in os.listdir(output_folder):
+            file_path = os.path.join(output_folder, filename)
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
 
     frame_files = [f for f in os.listdir(input_folder) if f.endswith('.jpg')]
     frame_files.sort(key=lambda x: int(x[5:-4]))
@@ -136,14 +133,22 @@ def apply_filter_to_frames(input_folder, output_folder, compression=False, effec
         processes.append(process)
         process.start()
 
+    # Track progress
+    while any(process.is_alive() for process in processes):
+        og_files = len(os.listdir(input_folder))
+        filtered_files = len(os.listdir(output_folder))
+        if og_files > 0:
+            progress = (filtered_files / og_files) * 100
+            print(f"\rProgress: {progress:.2f}%", end='', flush=True)
+        time.sleep(1)
+
     for process in processes:
         process.join()
 
-    print("Finished applying filter to all frames.")
+    print("\rProgress: 100.00% - FINISH!")
 
-def frames_to_video(input_folder, output_path, fps):
-    """Converts a sequence of frames into a video file using ffmpeg."""
-    print(f"Converting frames in '{input_folder}' to video '{output_path}' at {fps} fps...")
+def frames_to_video(input_folder, output_path, fps, original_video_path):
+    """Converts a sequence of frames into a video file using ffmpeg and retains the original audio."""
     frame_files = [f for f in os.listdir(input_folder) if f.endswith('.jpg')]
     
     if not frame_files:
@@ -162,22 +167,25 @@ def frames_to_video(input_folder, output_path, fps):
     # Construct the ffmpeg command
     command = [
         'ffmpeg',
+        '-y',
         '-f', 'concat',
         '-safe', '0',
         '-r', str(fps),
         '-i', 'frames.txt',
+        '-i', original_video_path,
         '-c:v', 'libx264',
+        '-c:a', 'aac',
+        '-strict', 'experimental',
         '-pix_fmt', 'yuv420p',
+        '-shortest',  # Ensure the video and audio lengths match
         output_path
     ]
 
     # Execute the ffmpeg command
-    subprocess.run(command)
+    subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     # Remove the temporary text file
     os.remove('frames.txt')
-
-    print(f"Video saved to '{output_path}'.")
 
 def main():
     parser = argparse.ArgumentParser(description='Process a local video file and apply filters.')
@@ -185,11 +193,16 @@ def main():
     args = parser.parse_args()
 
     video_path = args.video_path
+    video_name, video_ext = os.path.splitext(video_path)
+    filtered_video_path = f"{video_name}_filtered{video_ext}"
 
-    converted_video_path = 'converted_video.mp4'
-    convert_video(video_path, converted_video_path)
+    customize_fps = input("Would you like to customize the FPS for frame extraction? (y/n): ").lower() == 'y'
+    if customize_fps:
+        fps = int(input("Enter the desired FPS for frame extraction: "))
+    else:
+        fps = get_video_fps(video_path)
 
-    fps, total_frames = extract_frames(converted_video_path, 'og')
+    extract_frames_with_ffmpeg(video_path, 'og', fps)
 
     milk_type = int(input("Select milk type (1 or 2): "))
     pointillism = input("Apply pointillism effect? (y/n): ").lower() == 'y'
@@ -204,14 +217,13 @@ def main():
     for file in os.listdir('og'):
         os.remove(f'og/{file}')
 
-    frames_to_video('filtered_frames', 'filtered_video.mp4', fps)
+    frames_to_video('filtered_frames', filtered_video_path, fps, video_path)
 
     for file in os.listdir('filtered_frames'):
         os.remove(f'filtered_frames/{file}')
 
     os.rmdir('filtered_frames')
     os.rmdir('og')
-    os.remove(converted_video_path)
 
 if __name__ == "__main__":
     main()
