@@ -1,8 +1,5 @@
 import os
 
-# Establece la variable de entorno antes de importar PyQt5
-os.environ["QT_QPA_PLATFORM"] = "xcb"
-
 import sys
 import cv2
 import random
