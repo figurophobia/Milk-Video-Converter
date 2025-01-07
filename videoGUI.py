@@ -1,16 +1,14 @@
 import os
-
 import sys
 import cv2
 import random
-from PIL import Image
+from PIL import Image, ImageTk
 import subprocess
 from multiprocessing import Process, cpu_count
 import shutil
 import time
-from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog, QCheckBox, QSpinBox, QComboBox, QProgressBar)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QPalette
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
 
 def get_video_fps(video_path):
     """Gets the FPS of a video file."""
@@ -141,14 +139,14 @@ def apply_filter_to_frames(input_folder, output_folder, compression=False, effec
         if og_files > 0:
             progress = (filtered_files / og_files) * 100
             if progress_callback:
-                progress_callback.emit(int(progress))
+                progress_callback(int(progress))
         time.sleep(1)
 
     for process in processes:
         process.join()
 
     if progress_callback:
-        progress_callback.emit(100)
+        progress_callback(100)
 
 def frames_to_video(input_folder, output_path, fps, original_video_path):
     """Converts a sequence of frames into a video file using ffmpeg and retains the original audio."""
@@ -183,22 +181,20 @@ def frames_to_video(input_folder, output_path, fps, original_video_path):
     subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.remove('frames.txt')
 
-class FilterThread(QThread):
-    progress = pyqtSignal(int)
-    finished = pyqtSignal()
-
-    def __init__(self, video_path, fps, milk_type, pointillism, compression, quality):
-        super().__init__()
+class FilterThread:
+    def __init__(self, video_path, fps, milk_type, pointillism, compression, quality, progress_callback, finish_callback):
         self.video_path = video_path
         self.fps = fps
         self.milk_type = milk_type
         self.pointillism = pointillism
         self.compression = compression
         self.quality = quality
+        self.progress_callback = progress_callback
+        self.finish_callback = finish_callback
 
     def run(self):
         extract_frames_with_ffmpeg(self.video_path, 'og', self.fps)
-        apply_filter_to_frames('og', 'filtered_frames', compression=self.compression, effect=self.pointillism, milk_type=self.milk_type, quality=self.quality, progress_callback=self.progress)
+        apply_filter_to_frames('og', 'filtered_frames', compression=self.compression, effect=self.pointillism, milk_type=self.milk_type, quality=self.quality, progress_callback=self.progress_callback)
         
         for file in os.listdir('og'):
             os.remove(f'og/{file}')
@@ -214,149 +210,114 @@ class FilterThread(QThread):
         os.rmdir('filtered_frames')
         os.rmdir('og')
 
-        self.finished.emit()
+        self.finish_callback()
 
-class VideoFilterApp(QWidget):
+class VideoFilterApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.video_path = None
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle("Milk Inside a Bag of Milk Video Filter")
-        self.setGeometry(100, 100, 400, 300)
+        self.title("Milk Inside a Bag of Milk Video Filter")
+        self.geometry("400x600")
+        self.configure(bg="#1e1e2e")  # Dark blue background color
 
-        palette = QPalette()
-        palette.setColor(QPalette.Window, QColor("#040404"))  # Fondo de la ventana
-        palette.setColor(QPalette.WindowText, QColor("#7c138b"))  # Texto de la ventana
-        palette.setColor(QPalette.Base, QColor("#7c138b"))  # Fondo de los campos de entrada
-        palette.setColor(QPalette.AlternateBase, QColor("#5d0423"))  # Fondo alternativo
-        palette.setColor(QPalette.ToolTipBase, QColor("#5d0423"))  # Fondo de la herramienta
-        palette.setColor(QPalette.ToolTipText, QColor("#040404"))  # Texto de la herramienta
-        palette.setColor(QPalette.Text, QColor("#040404"))  # Texto en los campos de entrada
-        palette.setColor(QPalette.Button, QColor("#7c138b"))  # Fondo de los botones
-        palette.setColor(QPalette.ButtonText, QColor("#040404"))  # Texto de los botones
-        palette.setColor(QPalette.Highlight, QColor("#5d0423"))  # Color de resaltado
-        palette.setColor(QPalette.HighlightedText, QColor("#040404"))  # Texto resaltado
-        self.setPalette(palette)
+        font = ("Arial", 14, "bold")
+        button_font = ("Arial", 12, "bold")
 
-        font = QFont("Arial", 14, QFont.Bold)
+        self.title_label = tk.Label(self, text="Milk Inside a Bag of Milk Video Filter", font=font, fg="#f1fa8c", bg="#1e1e2e")
+        self.title_label.pack(pady=10)
 
-        layout = QVBoxLayout()
+        self.select_video_btn = tk.Button(self, text="Select Video", command=self.select_video, font=button_font, bg="#50fa7b", fg="#282a36")
+        self.select_video_btn.pack(pady=5)
 
-        self.title = QLabel("Milk Inside a Bag of Milk Video Filter", self)
-        self.title.setFont(font)
-        self.title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.title)
+        self.fps_checkbox_var = tk.IntVar()
+        self.fps_checkbox = tk.Checkbutton(self, text="Customize FPS", variable=self.fps_checkbox_var, command=self.toggle_fps_spinbox, bg="#1e1e2e", fg="#f1fa8c", selectcolor="#1e1e2e")
+        self.fps_checkbox.pack(pady=5)
 
-        self.select_video_btn = QPushButton("Select Video", self)
-        self.select_video_btn.setFixedSize(150, 30)
-        self.select_video_btn.clicked.connect(self.select_video)
-        layout.addWidget(self.select_video_btn, alignment=Qt.AlignCenter)
+        self.fps_spinbox = tk.Spinbox(self, from_=1, to=60, state="disabled", font=button_font, bg="#44475a", fg="#f8f8f2")
+        self.fps_spinbox.pack(pady=5)
 
-        self.fps_checkbox = QCheckBox("Customize FPS", self)
-        self.fps_checkbox.stateChanged.connect(self.toggle_fps_spinbox)
-        layout.addWidget(self.fps_checkbox)
+        self.milk_type_label = tk.Label(self, text="Select Milk Type:", font=font, fg="#f1fa8c", bg="#1e1e2e")
+        self.milk_type_label.pack(pady=5)
 
-        self.fps_spinbox = QSpinBox(self)
-        self.fps_spinbox.setFixedSize(80, 30)
-        self.fps_spinbox.setRange(1, 60)
-        self.fps_spinbox.setValue(30)
-        self.fps_spinbox.setEnabled(False)
-        layout.addWidget(self.fps_spinbox)
+        self.milk_type_combo = ttk.Combobox(self, values=["Milk Type 1", "Milk Type 2"], font=button_font)
+        self.milk_type_combo.current(0)
+        self.milk_type_combo.pack(pady=5)
 
-        self.milk_type_label = QLabel("Select Milk Type:", self)
-        self.milk_type_label.setFont(font)
-        layout.addWidget(self.milk_type_label)
+        self.pointillism_checkbox_var = tk.IntVar()
+        self.pointillism_checkbox = tk.Checkbutton(self, text="Apply Pointillism Effect", variable=self.pointillism_checkbox_var, bg="#1e1e2e", fg="#f1fa8c", selectcolor="#1e1e2e")
+        self.pointillism_checkbox.pack(pady=5)
 
-        self.milk_type_combo = QComboBox(self)
-        self.milk_type_combo.setFixedSize(150, 30)
-        self.milk_type_combo.addItem("Milk Type 1")
-        self.milk_type_combo.addItem("Milk Type 2")
-        layout.addWidget(self.milk_type_combo)
+        self.compression_checkbox_var = tk.IntVar()
+        self.compression_checkbox = tk.Checkbutton(self, text="Apply Compression", variable=self.compression_checkbox_var, command=self.toggle_quality_spinbox, bg="#1e1e2e", fg="#f1fa8c", selectcolor="#1e1e2e")
+        self.compression_checkbox.pack(pady=5)
 
-        self.pointillism_checkbox = QCheckBox("Apply Pointillism Effect", self)
-        layout.addWidget(self.pointillism_checkbox)
+        self.quality_spinbox = tk.Spinbox(self, from_=0, to=100, state="disabled", font=button_font, bg="#44475a", fg="#f8f8f2")
+        self.quality_spinbox.pack(pady=5)
 
-        self.compression_checkbox = QCheckBox("Apply Compression", self)
-        self.compression_checkbox.stateChanged.connect(self.toggle_quality_spinbox)
-        layout.addWidget(self.compression_checkbox)
+        self.progress_bar = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate")
+        self.progress_bar.pack(pady=5)
 
-        self.quality_spinbox = QSpinBox(self)
-        self.quality_spinbox.setFixedSize(80, 30)
-        self.quality_spinbox.setRange(0, 100)
-        self.quality_spinbox.setValue(90)
-        self.quality_spinbox.setEnabled(False)
-        layout.addWidget(self.quality_spinbox)
+        self.progress_label = tk.Label(self, text="Progress: 0.00%", font=font, fg="#f1fa8c", bg="#1e1e2e")
+        self.progress_label.pack(pady=5)
 
-        self.progress_bar = QProgressBar(self)
-        layout.addWidget(self.progress_bar)
+        self.start_btn = tk.Button(self, text="Start Processing", command=self.start_processing, font=button_font, bg="#50fa7b", fg="#282a36")
+        self.start_btn.pack(pady=10)
 
-        self.progress_label = QLabel("Progress: 0.00%", self)
-        self.progress_label.setFont(font)
-        self.progress_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.progress_label)
+    def toggle_fps_spinbox(self):
+        if self.fps_checkbox_var.get():
+            self.fps_spinbox.config(state="normal")
+        else:
+            self.fps_spinbox.config(state="disabled")
 
-        self.start_btn = QPushButton("Start Processing", self)
-        self.start_btn.setFixedSize(150, 30)
-        self.start_btn.clicked.connect(self.start_processing)
-        layout.addWidget(self.start_btn, alignment=Qt.AlignCenter)
-
-        self.setLayout(layout)
-        self.center()
-
-    def toggle_fps_spinbox(self, state):
-        self.fps_spinbox.setEnabled(state == Qt.Checked)
-
-    def toggle_quality_spinbox(self, state):
-        self.quality_spinbox.setEnabled(state == Qt.Checked)
-
-    def center(self):
-        frame = self.frameGeometry()
-        center_point = QApplication.desktop().screen().rect().center()
-        frame.moveCenter(center_point)
-        self.move(frame.topLeft())
+    def toggle_quality_spinbox(self):
+        if self.compression_checkbox_var.get():
+            self.quality_spinbox.config(state="normal")
+        else:
+            self.quality_spinbox.config(state="disabled")
 
     def select_video(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.ReadOnly
-        self.video_path, _ = QFileDialog.getOpenFileName(self, "Select Video", "", "Video Files (*.mp4 *.avi *.mov)", options=options)
+        self.video_path = filedialog.askopenfilename(filetypes=[("Video Files", "*.mp4 *.avi *.mov")])
         if self.video_path:
-            self.select_video_btn.setText(f"Selected: {os.path.basename(self.video_path)}")
+            self.select_video_btn.config(text=f"Selected: {os.path.basename(self.video_path)}")
 
     def update_progress(self, progress):
-        self.progress_bar.setValue(int(progress))
-        self.progress_label.setText(f"Progress: {progress:.2f}%")
+        self.progress_bar["value"] = progress
+        self.progress_label.config(text=f"Progress: {progress:.2f}%")
+        self.update_idletasks()
 
     def processing_finished(self):
-        self.progress_label.setText("Progress: 100.00% - FINISH!")
-        self.start_btn.setEnabled(True)
+        self.progress_label.config(text="Progress: 100.00% - FINISH!")
+        self.start_btn.config(state="normal")
+        messagebox.showinfo("Processing Finished", "The video has been processed successfully!")
 
     def start_processing(self):
         if not self.video_path:
+            messagebox.showwarning("No Video Selected", "Please select a video file to process.")
             return
 
         fps = get_video_fps(self.video_path)
-        if self.fps_checkbox.isChecked():
-            fps = self.fps_spinbox.value()
+        if self.fps_checkbox_var.get():
+            fps = int(self.fps_spinbox.get())
 
-        milk_type = 1 if self.milk_type_combo.currentIndex() == 0 else 2
-        pointillism = self.pointillism_checkbox.isChecked()
-        compression = self.compression_checkbox.isChecked()
-        quality = self.quality_spinbox.value()
+        milk_type = 1 if self.milk_type_combo.current() == 0 else 2
+        pointillism = bool(self.pointillism_checkbox_var.get())
+        compression = bool(self.compression_checkbox_var.get())
+        quality = int(self.quality_spinbox.get())
 
-        self.start_btn.setEnabled(False)
+        self.start_btn.config(state="disabled")
 
-        self.filter_thread = FilterThread(self.video_path, fps, milk_type, pointillism, compression, quality)
-        self.filter_thread.progress.connect(self.update_progress)
-        self.filter_thread.finished.connect(self.processing_finished)
-        self.filter_thread.start()
+        self.filter_thread = FilterThread(
+            self.video_path, fps, milk_type, pointillism, compression, quality,
+            progress_callback=self.update_progress, finish_callback=self.processing_finished
+        )
+        self.after(100, self.filter_thread.run)
 
 def main():
-    app = QApplication(sys.argv)
-    ex = VideoFilterApp()
-    ex.show()
-    sys.exit(app.exec_())
+    app = VideoFilterApp()
+    app.mainloop()
 
 if __name__ == "__main__":
     main()
