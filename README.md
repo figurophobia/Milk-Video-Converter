@@ -11,6 +11,22 @@ The original filter was created by [LucaSinUnaS](https://github.com/LucaSinUnaS)
 - Reassembles the frames into a new video with the original audio.
 - Saves the new video in the same directory as the script, with the same name as the original video, but with the suffix "_filtered" added.
 
+## CHECK THE RESULTS!!
+
+Video before processing:
+
+<p align="center">
+  <img src="IMAGES/og.gif" alt="Descripción de la imagen">
+</p>
+
+Video after processing:
+
+<p align="center">
+  <img src="IMAGES/filtered.gif" alt="Descripción de la imagen">
+</p>
+
+
+
 
 ## Requirements
 
@@ -61,9 +77,9 @@ python videoGUI.py
 
 An interface like this will appear on your screen if you run the executable/ python file correctly:
 
-
-![GUI](IMAGES/GUI.png)
-
+<p align="center">
+  <img src="IMAGES/GUI.png" alt="Descripción de la imagen">
+</p>
 
 
 Click on the "Select Video" button to select the video file you want to process. The video file must be in .mp4 preferably.
