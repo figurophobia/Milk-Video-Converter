@@ -19,7 +19,7 @@ Video before processing:
   <img src="IMAGES/og.gif" alt="Descripción de la imagen">
 </p>
 
-Video after processing:
+Video after processing **(Using milk type 2, and pointillism effect)**:
 
 <p align="center">
   <img src="IMAGES/filtered.gif" alt="Descripción de la imagen">
