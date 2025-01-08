@@ -1,0 +1,9 @@
+results/
+filtered_frames/
+og/
+.vscode/
+.venv/
+build/
+dist/
+*.spec
+exectables/
