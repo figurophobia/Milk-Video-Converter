@@ -5,8 +5,6 @@
 #include <thread>
 #include <vector>
 #include <random>
-#include <iomanip>
-#include <sstream>
 
 namespace fs = std::filesystem;
 
@@ -24,20 +22,19 @@ void extractFrames(const std::string& videoPath, const std::string& outputFolder
         throw std::runtime_error("Error opening video file");
     }
 
+    int frameCount = 0;
     double frameRate = cap.get(cv::CAP_PROP_FPS);
     int frameStep = static_cast<int>(frameRate / fps);
-    int extractedFrameCount = 0;
 
     fs::create_directory(outputFolder);
 
     cv::Mat frame;
     while (cap.read(frame)) {
-        if (extractedFrameCount % frameStep == 0) {
-            std::ostringstream filename;
-            filename << outputFolder << "/frame" << std::setw(6) << std::setfill('0') << extractedFrameCount << ".jpg";
-            cv::imwrite(filename.str(), frame);
+        if (frameCount % frameStep == 0) {
+            std::string filename = outputFolder + "/frame" + std::to_string(frameCount) + ".jpg";
+            cv::imwrite(filename, frame);
         }
-        extractedFrameCount++;
+        frameCount++;
     }
 }
 
@@ -118,13 +115,13 @@ cv::Mat applyFilter(const cv::Mat& image, bool compression, bool effect, int mil
     return imag;
 }
 
-void processFrameRange(const std::vector<std::string>& frameFiles, int startIdx, int endIdx, const std::string& inputFolder, const std::string& outputFolder, int milkType, int quality, bool effect) {
-    for (int i = startIdx; i <= endIdx; ++i) {
-        std::string framePath = inputFolder + "/" + frameFiles[i];
+void processFrameRange(int startFrame, int endFrame, const std::string& inputFolder, const std::string& outputFolder, int milkType, int quality, bool effect) {
+    for (int frameNum = startFrame; frameNum <= endFrame; ++frameNum) {
+        std::string framePath = inputFolder + "/frame" + std::to_string(frameNum) + ".jpg";
         cv::Mat frame = cv::imread(framePath);
         if (!frame.empty()) {
             cv::Mat filteredFrame = applyFilter(frame, true, effect, milkType, quality, framePath);
-            std::string outputFramePath = outputFolder + "/" + frameFiles[i];
+            std::string outputFramePath = outputFolder + "/frame" + std::to_string(frameNum) + ".jpg";
             cv::imwrite(outputFramePath, filteredFrame);
         }
     }
@@ -133,21 +130,24 @@ void processFrameRange(const std::vector<std::string>& frameFiles, int startIdx,
 void processFramesWithThreads(const std::string& inputFolder, const std::string& outputFolder, int milkType, int quality, bool effect, int numThreads) {
     fs::create_directory(outputFolder);
 
+    std::vector<std::thread> threads;
+
     std::vector<std::string> frameFiles;
     for (const auto& entry : fs::directory_iterator(inputFolder)) {
         frameFiles.push_back(entry.path().filename().string());
     }
 
-    std::sort(frameFiles.begin(), frameFiles.end());
+    std::sort(frameFiles.begin(), frameFiles.end(), [](const std::string& a, const std::string& b) {
+        return std::stoi(a.substr(5, a.find_last_of('.') - 5)) < std::stoi(b.substr(5, b.find_last_of('.') - 5));
+    });
 
     int totalFrames = frameFiles.size();
     int framesPerThread = totalFrames / numThreads;
-    std::vector<std::thread> threads;
 
     for (int i = 0; i < numThreads; ++i) {
-        int startIdx = i * framesPerThread;
-        int endIdx = (i == numThreads - 1) ? totalFrames - 1 : (i + 1) * framesPerThread - 1;
-        threads.emplace_back(processFrameRange, frameFiles, startIdx, endIdx, inputFolder, outputFolder, milkType, quality, effect);
+        int startFrame = i * framesPerThread;
+        int endFrame = (i == numThreads - 1) ? totalFrames - 1 : (i + 1) * framesPerThread - 1;
+        threads.emplace_back(processFrameRange, startFrame, endFrame, inputFolder, outputFolder, milkType, quality, effect);
     }
 
     for (auto& t : threads) {
@@ -156,7 +156,7 @@ void processFramesWithThreads(const std::string& inputFolder, const std::string&
 }
 
 void framesToVideo(const std::string& inputFolder, const std::string& outputPath, int fps, const std::string& originalVideoPath) {
-    std::string command = "ffmpeg -y -framerate " + std::to_string(fps) + " -i " + inputFolder + "/frame%06d.jpg -i " + originalVideoPath + " -c:v libx264 -c:a aac -strict experimental -pix_fmt yuv420p -shortest " + outputPath;
+    std::string command = "ffmpeg -y -framerate " + std::to_string(fps) + " -i " + inputFolder + "/frame%d.jpg -i " + originalVideoPath + " -c:v libx264 -c:a aac -strict experimental -pix_fmt yuv420p -shortest " + outputPath;
     std::system(command.c_str());
 }
 
