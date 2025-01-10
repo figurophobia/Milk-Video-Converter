@@ -1,9 +1,8 @@
 results/
 filtered_frames/
 og/
-.vscode/
-.venv/
 build/
 dist/
+.venv/
 *.spec
 exectables/
